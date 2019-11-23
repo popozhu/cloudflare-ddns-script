@@ -38,8 +38,8 @@ CFZONE_NAME=
 # Hostname to update, eg: homeserver.example.com
 CFRECORD_NAME=
 
-# Cloudflare TTL for record, between 120 and 86400 seconds
-CFTTL=120
+# Cloudflare TTL for record, between 120 and 86400 seconds, Value of 1 is automatic.
+CFTTL=1
 
 # Ignore local file, update ip anyway
 FORCE=false
