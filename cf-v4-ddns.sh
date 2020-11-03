@@ -7,7 +7,7 @@ set -o pipefail
 # Can retrieve cloudflare Domain id and list zone's, because, lazy
 
 # Place at:
-# curl https://raw.githubusercontent.com/yulewang/cloudflare-api-v4-ddns/master/cf-v4-ddns.sh > /usr/local/bin/cf-ddns.sh && chmod +x /usr/local/bin/cf-ddns.sh
+# curl https://raw.githubusercontent.com/popozhu/cloudflare-ddns-script/master/cf-v4-ddns.sh > /usr/local/bin/cf-ddns.sh && chmod +x /usr/local/bin/cf-ddns.sh
 # run `crontab -e` and add next line:
 # */1 * * * * /usr/local/bin/cf-ddns.sh >/dev/null 2>&1
 # or you need log:
@@ -48,18 +48,6 @@ CFTTL=1
 # Ignore local file, update ip anyway
 FORCE=false
 
-WANIPSITE="http://ipv4.icanhazip.com"
-
-# Site to retrieve WAN ip, other examples are: bot.whatismyipaddress.com, https://api.ipify.org/ ...
-if [ "$CFRECORD_TYPE" = "A" ]; then
-  :
-elif [ "$CFRECORD_TYPE" = "AAAA" ]; then
-  WANIPSITE="http://ipv6.icanhazip.com"
-else
-  echo "$CFRECORD_TYPE specified is invalid, CFRECORD_TYPE can only be A(for IPv4)|AAAA(for IPv6)"
-  exit 2
-fi
-
 # get parameter
 while getopts k:u:h:z:t:f: opts; do
   case ${opts} in
@@ -71,6 +59,17 @@ while getopts k:u:h:z:t:f: opts; do
     f) FORCE=${OPTARG} ;;
   esac
 done
+
+WANIPSITE="http://ipv4.icanhazip.com"
+# Site to retrieve WAN ip, other examples are: bot.whatismyipaddress.com, https://api.ipify.org/ ...
+if [ "$CFRECORD_TYPE" = "A" ]; then
+  :
+elif [ "$CFRECORD_TYPE" = "AAAA" ]; then
+  WANIPSITE="http://ipv6.icanhazip.com"
+else
+  echo "$CFRECORD_TYPE specified is invalid, CFRECORD_TYPE can only be A(for IPv4)|AAAA(for IPv6)"
+  exit 2
+fi
 
 # If required settings are missing just exit
 if [ "$CFKEY" = "" ]; then
@@ -97,11 +96,12 @@ fi
 
 # Get current and old WAN ip
 WAN_IP=`curl -s ${WANIPSITE}`
+echo "current wan ip: $WAN_IP"
 WAN_IP_FILE=$HOME/.cf-wan_ip_$CFRECORD_NAME.txt
 if [ -f $WAN_IP_FILE ]; then
   OLD_WAN_IP=`cat $WAN_IP_FILE`
 else
-  echo "No file, need IP"
+  echo "No cache file, need to check and update IP"
   OLD_WAN_IP=""
 fi
 
@@ -120,8 +120,16 @@ if [ -f $ID_FILE ] && [ $(wc -l $ID_FILE | cut -d " " -f 1) == 4 ] \
     CFRECORD_ID=$(sed -n '2,1p' "$ID_FILE")
 else
     echo "Updating zone_identifier & record_identifier"
-    CFZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$CFZONE_NAME" -H "X-Auth-Email: $CFUSER" -H "X-Auth-Key: $CFKEY" -H "Content-Type: application/json" | grep -Po '(?<="id":")[^"]*' | head -1 )
-    CFRECORD_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records?name=$CFRECORD_NAME" -H "X-Auth-Email: $CFUSER" -H "X-Auth-Key: $CFKEY" -H "Content-Type: application/json"  | grep -Po '(?<="id":")[^"]*' | head -1 )
+    CFZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$CFZONE_NAME&status=active" \
+      -H "X-Auth-Email: $CFUSER" \
+      -H "X-Auth-Key: $CFKEY" \
+      -H "Content-Type: application/json" | jq -r '{"result"}[] | .[0] | .id')
+    echo "Zoneid for $CFZONE_NAME is $CFZONE_ID"
+    CFRECORD_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$CFZONE_ID/dns_records?name=$CFRECORD_NAME" \
+      -H "X-Auth-Email: $CFUSER" \
+      -H "X-Auth-Key: $CFKEY" \
+      -H "Content-Type: application/json"  | jq -r '{"result"}[] | .[0] | .id')
+    echo "Record_id for $CFZONE_NAME is $CFRECORD_ID"
     echo "$CFZONE_ID" > $ID_FILE
     echo "$CFRECORD_ID" >> $ID_FILE
     echo "$CFZONE_NAME" >> $ID_FILE
