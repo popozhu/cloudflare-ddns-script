@@ -1,6 +1,11 @@
 # Cloudflare DDNS Script
 
-Cloudflare API v4 Dynamic DNS Update in Bash, without unnecessary requests
+Cloudflare API v4 Dynamic DNS Update in Bash, and `jq` required to decode json string.
+
+```
+$ jq -h
+jq - commandline JSON processor [version 1.5]
+```
 
 ## Usage
 
